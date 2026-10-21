@@ -8,3 +8,12 @@
   1. Apresentar conceito introdutório sobre docker compose
 
 ---
+
+## Referências
+
+- [docker docs](https://docs.docker.com/)
+  - [docker compose](https://docs.docker.com/compose/)
+- [Docker para desenvolvedores](https://github.com/gomex/docker-para-desenvolvedores/)
+  - [Gerenciando múltiplos contêineres docker com Docker Compose](https://github.com/gomex/docker-para-desenvolvedores/blob/master/manuscript/compose.md)
+
+---
