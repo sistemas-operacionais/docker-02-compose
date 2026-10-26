@@ -87,17 +87,31 @@ $ touch /src/python/produtor.py
 
 # 4. inicializar serviços produtor e consumidor
 $ docker compose up
+# Para finalizar pressionar CTRL+D 
+# Exemplo de saída abaixo
+WARN[0000] Found orphan containers (docker-02-compose-produtor-run-e0cf59ed37ed, docker-02-compose-consumidor-run-e5fb593d0911) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up. 
+[+] up 1/1
+ ✔ Container docker-02-compose-produtor-1 Running                                                                                                           0.0s
+Attaching to consumidor-1, produtor-1
+consumidor-1  | Consumidor iniciando, tentando conectar ao PRODUTOR...
+consumidor-1  | Tentando conectar em host.docker.internal:5000...
+produtor-1    | Conectado por: ('172.18.0.1', 40082)
+produtor-1    | Mensagem recebida: Olá do Produtor via Socket!
+consumidor-1  | Resposta do consumidor: Mensagem recebida com sucesso!
+consumidor-1 exited with code 0
+## Após presssionar CTRL+D
+Container docker-02-compose-consumidor-1 Stopping 
+Container docker-02-compose-consumidor-1 Stopped 
+Container docker-02-compose-produtor-1 Stopping 
+Container docker-02-compose-produtor-1 Stopped 
+produtor-1 exited with code 137
 
 # 5. conectar no serviço consumidor e testar manualmente
 $ docker compose ps -a
-CONTAINER ID   IMAGE                          COMMAND                  CREATED          STATUS                      PORTS                                         NAMES
-8835762c59d1   minha-imagem-python            "python3"                20 minutes ago   Exited (0) 20 minutes ago                                                 conteiner-python
-174fa4409e66   docker-02-compose-consumidor   "python consumidor.py"   6 hours ago      Up 12 seconds                                                             docker-02-compose-consumidor-1
-4b257d49d105   docker-02-compose-produtor     "python produtor.py"     6 hours ago      Up 13 seconds               0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   docker-02-compose-produtor-1
-82adcc86d9c9   meu-app-python                 "/bin/bash"              2 days ago       Exited (130) 2 days ago                                                   teste
-
-$ docker exec -it 174fa4409e66 /bin/bash
-root@174fa4409e66: 
+# Exemplo de saída abaixo
+NAME                                            IMAGE                          COMMAND                  SERVICE      CREATED         STATUS     PORTS
+docker-02-compose-consumidor-1                  docker-02-compose-consumidor   "python consumidor.py"   consumidor   7 minutes ago   Exited (0) About a minute ago   
+docker-02-compose-produtor-1                    docker-02-compose-produtor     "python -u produtor.…"   produtor     7 minutes ago   Exited (137) 29 seconds ago     
 
 ```
 
@@ -118,6 +132,135 @@ services:
       - "5000:5000"
     volumes:
       - ./src/python:/app
+
+```
+
+**/src/python/produtor.py**
+```python
+import socket
+
+HOST = '0.0.0.0'  # Escuta em todas as interfaces de rede do container
+PORT = 5000       # Porta interna do serviço
+
+def iniciar_servidor():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((HOST, PORT))
+        s.listen()
+        print(f"PRODUTOR aguardando conexões na porta {PORT}...")
+        
+        while True:
+            conn, addr = s.accept()
+            with conn:
+                conn.settimeout(3)
+                print(f"Conectado por: {addr}")
+                try:
+                    data = conn.recv(1024)
+                except socket.timeout:
+                    continue
+                if not data:
+                    continue
+                print(f"Mensagem recebida: {data.decode('utf-8', errors='replace')}")
+                conn.sendall(b"Mensagem recebida com sucesso!")
+
+if __name__ == "__main__":
+    iniciar_servidor()
+    
+```
+
+**/src/python/consumidor.py**
+```python
+import socket
+import time
+
+HOST = 'produtor'
+PORT = 5000
+
+def enviar_mensagem():
+    print("Consumidor iniciando, tentando conectar ao PRODUTOR...", flush=True)
+    
+    # Loop de tentativas para contornar o atraso de inicialização no Codespaces
+    while True:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(3) # Timeout de 3 segundos por tentativa
+                print(f"Tentando conectar em {HOST}:{PORT}...", flush=True)
+                s.connect((HOST, PORT))
+                
+                mensagem = "Olá do Produtor via Socket!"
+                s.sendall(mensagem.encode('utf-8'))
+                
+                data = s.recv(1024)
+                print(f"Resposta do consumidor: {data.decode('utf-8')}", flush=True)
+                break # Conectou e enviou com sucesso, sai do loop
+                
+        except (socket.error, socket.timeout) as e:
+            print(f"Consumidor ainda não está pronto ({e}). Tentando novamente em 2 segundos...", flush=True)
+            time.sleep(2)
+
+if __name__ == "__main__":
+    enviar_mensagem()
+
+```
+
+**Observações**: 
+- o código acima funcionou na aula, contudo logo após a aula apresentou problema de comunicação em algumas tentativas de execução em casa.
+- após algum diálogo com o gemini e copilot (esse dentro do vs code), a solução foi colocar um "novo nome de endereço" e usá-lo no código consumidor.
+- mudou `docker-compose.yml` e `consumidor.py`, que ficou como os arquivos abaixo.
+
+**docker-compose.yml**
+```yml
+services:
+  consumidor:
+    build: .
+    command: python consumidor.py
+    volumes:
+      - ./src/python:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - produtor
+  produtor:
+    build: .
+    command: python -u produtor.py
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./src/python:/app
+      
+``` 
+
+**/src/python/consumidor.py**
+```python
+import socket
+import time
+
+HOST = 'host.docker.internal'
+PORT = 5000
+
+def enviar_mensagem():
+    print("Consumidor iniciando, tentando conectar ao PRODUTOR...", flush=True)
+    
+    # Loop de tentativas para contornar o atraso de inicialização no Codespaces
+    while True:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(3) # Timeout de 3 segundos por tentativa
+                print(f"Tentando conectar em {HOST}:{PORT}...", flush=True)
+                s.connect((HOST, PORT))
+                
+                mensagem = "Olá do Produtor via Socket!"
+                s.sendall(mensagem.encode('utf-8'))
+                
+                data = s.recv(1024)
+                print(f"Resposta do consumidor: {data.decode('utf-8')}", flush=True)
+                break # Conectou e enviou com sucesso, sai do loop
+                
+        except (socket.error, socket.timeout) as e:
+            print(f"Consumidor ainda não está pronto ({e}). Tentando novamente em 2 segundos...", flush=True)
+            time.sleep(2)
+
+if __name__ == "__main__":
+    enviar_mensagem()
 
 ```
 

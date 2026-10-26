@@ -4,6 +4,8 @@ services:
     command: python consumidor.py
     volumes:
       - ./src/python:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - produtor
   produtor:

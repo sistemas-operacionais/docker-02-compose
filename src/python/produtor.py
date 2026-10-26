@@ -12,11 +12,15 @@ def iniciar_servidor():
         while True:
             conn, addr = s.accept()
             with conn:
+                conn.settimeout(3)
                 print(f"Conectado por: {addr}")
-                data = conn.recv(1024)
+                try:
+                    data = conn.recv(1024)
+                except socket.timeout:
+                    continue
                 if not data:
-                    break
-                print(f"Mensagem recebida: {data.decode('utf-8')}")
+                    continue
+                print(f"Mensagem recebida: {data.decode('utf-8', errors='replace')}")
                 conn.sendall(b"Mensagem recebida com sucesso!")
 
 if __name__ == "__main__":

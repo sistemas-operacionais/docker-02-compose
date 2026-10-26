@@ -1,7 +1,7 @@
 import socket
 import time
 
-HOST = 'produtor'
+HOST = 'host.docker.internal'
 PORT = 5000
 
 def enviar_mensagem():
