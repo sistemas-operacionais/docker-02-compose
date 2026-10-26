@@ -1,7 +1,15 @@
 services:
   consumidor:
     build: .
+    command: python consumidor.py
+    volumes:
+      - ./src/python:/app
     depends_on:
       - produtor
   produtor:
     build: .
+    command: python -u produtor.py
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./src/python:/app
